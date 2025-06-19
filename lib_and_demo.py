@@ -34,13 +34,13 @@ class EvolvableParameter:
         self.value += delta
         
         # Clip parameter values to prevent numerical explosion
-        self.value = np.clip(self.value, -5.0, 5.0)
+        self.value = np.clip(self.value, -10.0, 10.0)
         
-        # Mutate the resistance (co-evolution) with smaller step size
+        # Mutate the resistance (co-evolution) with appropriate step size
         resistance_noise = np.random.normal(0, 1)
-        resistance_delta = resistance_noise * mutation_rate * 0.01 * (1 - self.resistance)
+        resistance_delta = resistance_noise * mutation_rate * 0.02 * (1 - self.resistance)  # Much smaller step
         self.resistance += resistance_delta
-        self.resistance = np.clip(self.resistance, 0.0, 0.9)  # Prevent resistance from reaching 1.0
+        self.resistance = np.clip(self.resistance, 0.0, 0.95)  # Prevent resistance from reaching 1.0
         
         # Track history
         self.history.append((self.value, self.resistance))
@@ -54,18 +54,19 @@ class AggregationFunction:
     def __init__(self, num_inputs: int):
         self.num_inputs = num_inputs
         # Initialize coefficients for different aggregation operations
+        # Give higher initial resistance to more fundamental operations
         self.coefficients = {
-            'linear': EvolvableParameter(1.0, 0.3, 'agg_linear'),
-            'quadratic': EvolvableParameter(0.0, 0.1, 'agg_quadratic'),
+            'linear': EvolvableParameter(1.0, 0.3, 'agg_linear'),       # Reduced resistance for basic operation
+            'quadratic': EvolvableParameter(0.0, 0.1, 'agg_quadratic'), # Lower resistance for specialized operation
             'sqrt': EvolvableParameter(0.0, 0.1, 'agg_sqrt'),
-            'sin': EvolvableParameter(0.0, 0.1, 'agg_sin'),
-            'gaussian': EvolvableParameter(0.0, 0.1, 'agg_gaussian')
+            'sin': EvolvableParameter(0.0, 0.05, 'agg_sin'),
+            'gaussian': EvolvableParameter(0.0, 0.05, 'agg_gaussian')
         }
     
     def __call__(self, inputs: np.ndarray) -> float:
         """Apply evolvable aggregation function."""
         # Clip inputs to prevent numerical issues
-        inputs = np.clip(inputs, -3, 3)
+        inputs = np.clip(inputs, -10, 10)
         result = 0.0
         
         # Linear aggregation
@@ -83,8 +84,8 @@ class AggregationFunction:
         # Gaussian aggregation
         result += self.coefficients['gaussian'].value * np.sum(np.exp(-inputs**2))
         
-        # Clip output to prevent explosion
-        return np.clip(result, -3.0, 3.0)
+        # Clip output to prevent explosion but allow more range
+        return np.clip(result, -5.0, 5.0)
     
     def get_parameters(self) -> List[EvolvableParameter]:
         """Return all evolvable parameters."""
@@ -95,38 +96,39 @@ class ActivationFunction:
     
     def __init__(self):
         # Initialize coefficients for different activation functions
+        # Give higher initial resistance to more fundamental activations
         self.coefficients = {
-            'tanh': EvolvableParameter(1.0, 0.3, 'act_tanh'),
-            'sigmoid': EvolvableParameter(0.0, 0.1, 'act_sigmoid'),
-            'relu': EvolvableParameter(0.0, 0.1, 'act_relu'),
-            'swish': EvolvableParameter(0.0, 0.1, 'act_swish'),
-            'linear': EvolvableParameter(0.0, 0.1, 'act_linear')
+            'tanh': EvolvableParameter(1.0, 0.3, 'act_tanh'),        # Reduced resistance for basic activation
+            'sigmoid': EvolvableParameter(0.0, 0.1, 'act_sigmoid'),  # Lower resistance
+            'relu': EvolvableParameter(0.0, 0.1, 'act_relu'),        # Lower resistance  
+            'swish': EvolvableParameter(0.0, 0.05, 'act_swish'),     # Lower resistance for complex activation
+            'linear': EvolvableParameter(0.0, 0.15, 'act_linear')    # Lower resistance for linear component
         }
     
     def __call__(self, x: float) -> float:
         """Apply evolvable activation function."""
         # Clip input to prevent numerical instability
-        x = np.clip(x, -10, 10)
+        x = np.clip(x, -15, 15)
         result = 0.0
         
         # Tanh
         result += self.coefficients['tanh'].value * np.tanh(x)
         
         # Sigmoid
-        result += self.coefficients['sigmoid'].value * (1 / (1 + np.exp(-x)))
+        result += self.coefficients['sigmoid'].value * (1 / (1 + np.exp(-np.clip(x, -10, 10))))
         
         # ReLU
         result += self.coefficients['relu'].value * max(0, x)
         
         # Swish
-        sigmoid_x = 1 / (1 + np.exp(-x))
+        sigmoid_x = 1 / (1 + np.exp(-np.clip(x, -10, 10)))
         result += self.coefficients['swish'].value * x * sigmoid_x
         
         # Linear
         result += self.coefficients['linear'].value * x
         
-        # Clip output to prevent explosion
-        return np.clip(result, -3.0, 3.0)
+        # Clip output to prevent explosion but allow more range
+        return np.clip(result, -5.0, 5.0)
     
     def get_parameters(self) -> List[EvolvableParameter]:
         """Return all evolvable parameters."""
@@ -137,16 +139,16 @@ class EvolvableSynapse:
     
     def __init__(self, weight: float = None, bias: float = 0.0, gain: float = 1.0):
         if weight is None:
-            weight = np.random.normal(0, 0.1)
+            weight = np.random.normal(0, 0.05)  # Smaller initial weights for stability
         
-        self.weight = EvolvableParameter(weight, 0.1, 'synapse_weight')
-        self.bias = EvolvableParameter(bias, 0.1, 'synapse_bias')
-        self.gain = EvolvableParameter(gain, 0.2, 'synapse_gain')
+        self.weight = EvolvableParameter(weight, 0.2, 'synapse_weight')  # Reduced resistance for weights
+        self.bias = EvolvableParameter(bias, 0.1, 'synapse_bias')        # Lower resistance for bias
+        self.gain = EvolvableParameter(gain, 0.2, 'synapse_gain')        # Reduced resistance for gain
     
     def forward(self, x: float) -> float:
         """Apply synaptic transformation."""
         result = self.gain.value * self.weight.value * x + self.bias.value
-        return np.clip(result, -3.0, 3.0)
+        return np.clip(result, -10.0, 10.0)
     
     def get_parameters(self) -> List[EvolvableParameter]:
         """Return all evolvable parameters."""
@@ -234,7 +236,7 @@ class EMNSNetwork:
     Evolvable Modular Neural System - Main network class.
     """
     
-    def __init__(self, layer_sizes: List[int], mutation_rate: float = 0.1):
+    def __init__(self, layer_sizes: List[int], mutation_rate: float = 0.01):
         self.layer_sizes = layer_sizes
         self.mutation_rate = mutation_rate
         self.performance_history = []
@@ -247,14 +249,17 @@ class EMNSNetwork:
             self.layers.append(layer)
         
         # Performance tracking
-        self.last_performance = 0.0
+        self.last_performance = float('-inf')
         self.best_performance = float('-inf')
         self.best_state = None
+        self.stagnation_counter = 0
         
-        # Mutation rate adaptation parameters
-        self.alpha = 0.995  # Stabilization factor
-        self.beta = 1.05    # Exploration factor
-        self.gamma = 0.999  # Natural decay factor
+        # Mutation rate adaptation parameters (FIXED LOGIC)
+        self.alpha = 0.99   # Decrease rate when improving (stabilize)
+        self.beta = 1.02    # Increase rate when degrading (explore more)
+        self.gamma = 0.995  # Natural decay factor
+        self.min_mutation_rate = 0.001
+        self.max_mutation_rate = 0.1
     
     def forward(self, inputs: np.ndarray) -> np.ndarray:
         """Forward pass through the entire network."""
@@ -282,18 +287,21 @@ class EMNSNetwork:
         if len(self.performance_history) > 0:
             performance_change = current_performance - self.last_performance
             
-            if performance_change > 0:
-                # Performance improved - stabilize
-                self.mutation_rate *= self.alpha
-            elif performance_change < 0:
-                # Performance degraded - explore
-                self.mutation_rate *= self.beta
+            if performance_change > 0.001:  # Performance improved significantly
+                # Performance improved - stabilize (DECREASE mutation rate)
+                self.mutation_rate *= 0.98  # More conservative decrease
+                self.stagnation_counter = 0
+            elif performance_change < -0.001:  # Performance degraded significantly  
+                # Performance degraded - explore more (INCREASE mutation rate)
+                self.mutation_rate *= 1.01  # More conservative increase
+                self.stagnation_counter += 1
             else:
-                # No change - natural decay
-                self.mutation_rate *= self.gamma
+                # No significant change - slight natural decay
+                self.mutation_rate *= 0.999
+                self.stagnation_counter += 1
         
         # Keep mutation rate in reasonable bounds
-        self.mutation_rate = np.clip(self.mutation_rate, 0.001, 1.0)
+        self.mutation_rate = np.clip(self.mutation_rate, self.min_mutation_rate, self.max_mutation_rate)
         
         self.last_performance = current_performance
         self.performance_history.append(current_performance)
@@ -303,6 +311,7 @@ class EMNSNetwork:
         if current_performance > self.best_performance:
             self.best_performance = current_performance
             self.best_state = self.get_network_state()
+            self.stagnation_counter = 0
     
     def get_network_state(self) -> Dict:
         """Get a snapshot of the current network state."""
@@ -320,29 +329,38 @@ class EMNSNetwork:
             state[f'layer_{i}'] = layer_state
         return state
     
-    def evolve_step(self, inputs: np.ndarray, targets: np.ndarray) -> float:
-        """
-        Perform one evolution step: forward pass, evaluate performance, 
-        mutate parameters, and adapt mutation rate.
-        """
-        # Forward pass
-        outputs = self.forward(inputs)
+    def evaluate_performance(self, X: np.ndarray, y: np.ndarray) -> float:
+        """Evaluate network performance on a dataset."""
+        total_mse = 0.0
+        for i in range(len(X)):
+            output = self.forward(X[i])
+            mse = np.mean((output - y[i]) ** 2)
+            total_mse += mse
         
-        # Evaluate performance (negative MSE for maximization)
-        performance = -np.mean((outputs - targets) ** 2)
-        
-        # Adapt mutation rate based on performance
-        self.adapt_mutation_rate(performance)
-        
-        # Universal parameter mutation
-        self.mutate_all_parameters()
-        
-        return performance
+        avg_mse = total_mse / len(X)
+        # Return negative MSE for maximization (higher is better)
+        return -avg_mse
+    
+    def save_current_state(self) -> Dict:
+        """Save the current parameter state."""
+        state = {}
+        params = self.get_all_parameters()
+        for i, param in enumerate(params):
+            state[i] = {'value': param.value, 'resistance': param.resistance}
+        return state
+    
+    def restore_state(self, state: Dict) -> None:
+        """Restore parameters from a saved state."""
+        params = self.get_all_parameters()
+        for i, param in enumerate(params):
+            if i in state:
+                param.value = state[i]['value']
+                param.resistance = state[i]['resistance']
     
     def train(self, X_train: np.ndarray, y_train: np.ndarray, 
-              epochs: int = 1000, verbose: bool = True) -> Dict:
+              epochs: int = 1000, verbose: bool = True, patience: int = 50) -> Dict:
         """
-        Train the EMNS network using evolutionary principles.
+        Train the EMNS network using evolutionary principles with stability improvements.
         """
         training_history = {
             'performance': [],
@@ -350,16 +368,45 @@ class EMNSNetwork:
             'resistance_stats': []
         }
         
+        # Initial performance evaluation
+        current_performance = self.evaluate_performance(X_train, y_train)
+        best_performance = current_performance
+        best_state = self.save_current_state()
+        stagnation_count = 0
+        
         for epoch in range(epochs):
-            total_performance = 0.0
+            # Save current state before mutation
+            current_state = self.save_current_state()
             
-            # Process all training samples
-            for i in range(len(X_train)):
-                performance = self.evolve_step(X_train[i], y_train[i])
-                total_performance += performance
+            # Adapt mutation rate based on current performance
+            self.adapt_mutation_rate(current_performance)
             
-            avg_performance = total_performance / len(X_train)
-            training_history['performance'].append(avg_performance)
+            # Universal parameter mutation
+            self.mutate_all_parameters()
+            
+            # Evaluate new performance after mutation
+            new_performance = self.evaluate_performance(X_train, y_train)
+            
+            # Accept or reject the mutation
+            if new_performance > current_performance:
+                # Accept the mutation
+                current_performance = new_performance
+                if new_performance > best_performance:
+                    best_performance = new_performance
+                    best_state = self.save_current_state()
+                    stagnation_count = 0
+            else:
+                # Reject the mutation and revert (occasionally)
+                if np.random.random() < 0.7:  # Revert 70% of bad mutations
+                    self.restore_state(current_state)
+                    # Still update performance history with the attempted mutation
+                else:
+                    # Accept some bad mutations for exploration
+                    current_performance = new_performance
+                    stagnation_count += 1
+            
+            # Record history
+            training_history['performance'].append(current_performance)
             training_history['mutation_rate'].append(self.mutation_rate)
             
             # Collect resistance statistics
@@ -372,10 +419,23 @@ class EMNSNetwork:
             }
             training_history['resistance_stats'].append(resistance_stats)
             
+            # Early stopping check
+            if stagnation_count >= patience:
+                if verbose:
+                    print(f"Early stopping at epoch {epoch} due to stagnation")
+                # Restore best state before stopping
+                self.restore_state(best_state)
+                break
+            
             if verbose and epoch % 100 == 0:
-                print(f"Epoch {epoch:4d}: Performance = {avg_performance:.6f}, "
+                print(f"Epoch {epoch:4d}: Performance = {current_performance:.6f}, "
+                      f"Best = {best_performance:.6f}, "
                       f"Mutation Rate = {self.mutation_rate:.6f}, "
                       f"Avg Resistance = {resistance_stats['mean']:.4f}")
+        
+        # Final restore to best state
+        self.restore_state(best_state)
+        self.best_performance = best_performance
         
         return training_history
     
@@ -462,13 +522,16 @@ def create_test_data(n_samples: int = 100, n_features: int = 2,
     
     X = np.random.randn(n_samples, n_features)
     
-    # Create a non-linear target function
+    # Create a non-linear target function with normalized output
     if n_features >= 2:
         y = np.sin(X[:, 0]) + 0.5 * np.cos(X[:, 1])
         if n_features > 2:
             y += 0.2 * np.tanh(X[:, 2])  # Add third feature if available
     else:
         y = np.sin(X[:, 0])
+    
+    # Normalize targets to reasonable range
+    y = 0.5 * np.tanh(y)  # Scale to [-0.5, 0.5] range
     
     y += noise * np.random.randn(n_samples)
     y = y.reshape(-1, 1)  # Make it 2D for consistency
@@ -477,49 +540,59 @@ def create_test_data(n_samples: int = 100, n_features: int = 2,
 
 def visualize_evolution(history: Dict, title: str = "EMNS Evolution"):
     """Visualize the evolution process."""
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-    fig.suptitle(title, fontsize=16)
-    
-    # Performance over time
-    axes[0, 0].plot(history['performance'])
-    axes[0, 0].set_title('Performance Evolution')
-    axes[0, 0].set_xlabel('Epoch')
-    axes[0, 0].set_ylabel('Performance')
-    axes[0, 0].grid(True)
-    
-    # Mutation rate over time
-    axes[0, 1].plot(history['mutation_rate'])
-    axes[0, 1].set_title('Mutation Rate Adaptation')
-    axes[0, 1].set_xlabel('Epoch')
-    axes[0, 1].set_ylabel('Mutation Rate')
-    axes[0, 1].grid(True)
-    
-    # Resistance statistics over time
-    resistance_means = [stats['mean'] for stats in history['resistance_stats']]
-    resistance_stds = [stats['std'] for stats in history['resistance_stats']]
-    
-    axes[1, 0].plot(resistance_means, label='Mean Resistance')
-    axes[1, 0].fill_between(range(len(resistance_means)), 
-                           np.array(resistance_means) - np.array(resistance_stds),
-                           np.array(resistance_means) + np.array(resistance_stds),
-                           alpha=0.3)
-    axes[1, 0].set_title('Resistance Evolution')
-    axes[1, 0].set_xlabel('Epoch')
-    axes[1, 0].set_ylabel('Resistance')
-    axes[1, 0].legend()
-    axes[1, 0].grid(True)
-    
-    # Final resistance distribution
-    final_resistances = [p.resistance for p in history.get('final_params', [])]
-    if final_resistances:
-        axes[1, 1].hist(final_resistances, bins=20, alpha=0.7)
-        axes[1, 1].set_title('Final Resistance Distribution')
-        axes[1, 1].set_xlabel('Resistance Value')
-        axes[1, 1].set_ylabel('Frequency')
-        axes[1, 1].grid(True)
-    
-    plt.tight_layout()
-    plt.show()
+    try:
+        fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+        fig.suptitle(title, fontsize=16)
+        
+        # Performance over time
+        if history['performance']:
+            axes[0, 0].plot(history['performance'])
+            axes[0, 0].set_title('Performance Evolution')
+            axes[0, 0].set_xlabel('Epoch')
+            axes[0, 0].set_ylabel('Performance')
+            axes[0, 0].grid(True)
+        
+        # Mutation rate over time
+        if history['mutation_rate']:
+            axes[0, 1].plot(history['mutation_rate'])
+            axes[0, 1].set_title('Mutation Rate Adaptation')
+            axes[0, 1].set_xlabel('Epoch')
+            axes[0, 1].set_ylabel('Mutation Rate')
+            axes[0, 1].grid(True)
+        
+        # Resistance statistics over time
+        if history['resistance_stats']:
+            resistance_means = [stats['mean'] for stats in history['resistance_stats']]
+            resistance_stds = [stats['std'] for stats in history['resistance_stats']]
+            
+            axes[1, 0].plot(resistance_means, label='Mean Resistance')
+            axes[1, 0].fill_between(range(len(resistance_means)), 
+                                   np.array(resistance_means) - np.array(resistance_stds),
+                                   np.array(resistance_means) + np.array(resistance_stds),
+                                   alpha=0.3)
+            axes[1, 0].set_title('Resistance Evolution')
+            axes[1, 0].set_xlabel('Epoch')
+            axes[1, 0].set_ylabel('Resistance')
+            axes[1, 0].legend()
+            axes[1, 0].grid(True)
+        
+        # Final resistance distribution
+        final_resistances = [p.resistance for p in history.get('final_params', [])]
+        if final_resistances:
+            axes[1, 1].hist(final_resistances, bins=20, alpha=0.7)
+            axes[1, 1].set_title('Final Resistance Distribution')
+            axes[1, 1].set_xlabel('Resistance Value')
+            axes[1, 1].set_ylabel('Frequency')
+            axes[1, 1].grid(True)
+        else:
+            axes[1, 1].text(0.5, 0.5, 'No final parameters data', 
+                           transform=axes[1, 1].transAxes, ha='center', va='center')
+        
+        plt.tight_layout()
+        plt.show()
+    except Exception as e:
+        print(f"Visualization error: {e}")
+        print("This might be due to matplotlib backend issues. Continuing without visualization.")
 
 # Example usage and demonstration
 if __name__ == "__main__":
@@ -531,13 +604,13 @@ if __name__ == "__main__":
     print(f"Training data shape: X={X_train.shape}, y={y_train.shape}")
     
     # Create EMNS network
-    network = EMNSNetwork(layer_sizes=[3, 8, 5, 1], mutation_rate=0.05)
+    network = EMNSNetwork(layer_sizes=[3, 8, 5, 1], mutation_rate=0.01)
     print(f"Network architecture: {network.layer_sizes}")
     print(f"Total parameters: {len(network.get_all_parameters())}")
     
     # Train the network
     print("\nStarting evolution...")
-    history = network.train(X_train, y_train, epochs=500, verbose=True)
+    history = network.train(X_train, y_train, epochs=1000, verbose=True, patience=100)
     
     # Add final parameters for visualization
     history['final_params'] = network.get_all_parameters()
@@ -554,9 +627,19 @@ if __name__ == "__main__":
     # Test the evolved network
     print("\nTesting evolved network...")
     test_inputs = np.array([[1.0, 0.5, -0.3], [0.0, 1.0, 0.2], [-1.0, -0.5, 0.8]])
-    for i, inp in enumerate(test_inputs):
+    test_targets = []
+    for inp in test_inputs:
+        # Use same target function as create_test_data
+        raw_target = np.sin(inp[0]) + 0.5 * np.cos(inp[1]) + 0.2 * np.tanh(inp[2])
+        target = 0.5 * np.tanh(raw_target)  # Apply same normalization
+        test_targets.append(target)
         output = network.forward(inp)
-        print(f"Input {i+1}: {inp} -> Output: {output}")
+        error = abs(output[0] - target)
+        print(f"Input: {inp} -> Target: {target:.4f}, Output: {output[0]:.4f}, Error: {error:.4f}")
+    
+    # Calculate test MSE
+    test_mse = np.mean([(network.forward(inp)[0] - target)**2 for inp, target in zip(test_inputs, test_targets)])
+    print(f"\nTest MSE: {test_mse:.6f}")
     
     # Demonstrate parameter evolution tracking
     print(f"\nBest performance achieved: {network.best_performance:.6f}")

@@ -20,11 +20,11 @@ def simple_regression_example():
     print(f"Training data: {X_train.shape}, Testing data: {X_test.shape}")
     
     # Create and train network
-    network = EMNSNetwork(layer_sizes=[2, 6, 4, 1], mutation_rate=0.3)
+    network = EMNSNetwork(layer_sizes=[2, 6, 4, 1], mutation_rate=0.01)
     print(f"Network created with {len(network.get_all_parameters())} parameters")
     
     # Train
-    history = network.train(X_train, y_train, epochs=200, verbose=True)
+    history = network.train(X_train, y_train, epochs=500, verbose=True, patience=50)
     
     # Evaluate
     predictions = network.predict(X_test)
@@ -59,11 +59,11 @@ def classification_example():
     print(f"Training data: {X_train.shape}, Testing data: {X_test.shape}")
     
     # Create and train network
-    network = EMNSNetwork(layer_sizes=[2, 8, 4, 1], mutation_rate=0.4)
+    network = EMNSNetwork(layer_sizes=[2, 8, 4, 1], mutation_rate=0.02)
     print(f"Network created with {len(network.get_all_parameters())} parameters")
     
     # Train
-    history = network.train(X_train, y_train, epochs=300, verbose=True)
+    history = network.train(X_train, y_train, epochs=600, verbose=True, patience=80)
     
     # Evaluate
     predictions = network.predict(X_test)
@@ -84,34 +84,34 @@ def continual_learning_example():
     print("=" * 40)
     
     # Create network
-    network = EMNSNetwork(layer_sizes=[2, 6, 1], mutation_rate=0.2)
+    network = EMNSNetwork(layer_sizes=[2, 6, 1], mutation_rate=0.015)
     
     # Task 1: Learn sin(x1)
     print("Learning Task 1: sin(x1)")
     X1 = np.random.uniform(-np.pi, np.pi, (100, 2))
-    y1 = np.sin(X1[:, 0]).reshape(-1, 1)
+    y1 = 0.5 * np.tanh(np.sin(X1[:, 0])).reshape(-1, 1)  # Apply normalization
     
-    history1 = network.train(X1, y1, epochs=150, verbose=False)
+    history1 = network.train(X1, y1, epochs=300, verbose=False, patience=50)
     print(f"Task 1 final performance: {history1['performance'][-1]:.6f}")
     
     # Task 2: Learn cos(x2) while retaining sin(x1)
     print("Learning Task 2: cos(x2)")
     X2 = np.random.uniform(-np.pi, np.pi, (100, 2))
-    y2 = np.cos(X2[:, 1]).reshape(-1, 1)
+    y2 = 0.5 * np.tanh(np.cos(X2[:, 1])).reshape(-1, 1)  # Apply normalization
     
-    history2 = network.train(X2, y2, epochs=150, verbose=False)
+    history2 = network.train(X2, y2, epochs=300, verbose=False, patience=50)
     print(f"Task 2 final performance: {history2['performance'][-1]:.6f}")
     
     # Test retention of Task 1
     test_X1 = np.random.uniform(-np.pi, np.pi, (20, 2))
-    test_y1 = np.sin(test_X1[:, 0]).reshape(-1, 1)
+    test_y1 = 0.5 * np.tanh(np.sin(test_X1[:, 0])).reshape(-1, 1)  # Apply normalization
     pred1 = network.predict(test_X1)
     mse1 = np.mean((pred1 - test_y1) ** 2)
     print(f"Task 1 retention MSE: {mse1:.6f}")
     
     # Test Task 2 performance
     test_X2 = np.random.uniform(-np.pi, np.pi, (20, 2))
-    test_y2 = np.cos(test_X2[:, 1]).reshape(-1, 1)
+    test_y2 = 0.5 * np.tanh(np.cos(test_X2[:, 1])).reshape(-1, 1)  # Apply normalization
     pred2 = network.predict(test_X2)
     mse2 = np.mean((pred2 - test_y2) ** 2)
     print(f"Task 2 performance MSE: {mse2:.6f}")
