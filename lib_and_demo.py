@@ -34,7 +34,7 @@ class EvolvableParameter:
         self.value += delta
         
         # Clip parameter values to prevent numerical explosion
-        self.value = np.clip(self.value, -10.0, 10.0)
+        self.value = np.clip(self.value, -5.0, 5.0)
         
         # Mutate the resistance (co-evolution) with smaller step size
         resistance_noise = np.random.normal(0, 1)
@@ -65,7 +65,7 @@ class AggregationFunction:
     def __call__(self, inputs: np.ndarray) -> float:
         """Apply evolvable aggregation function."""
         # Clip inputs to prevent numerical issues
-        inputs = np.clip(inputs, -10, 10)
+        inputs = np.clip(inputs, -3, 3)
         result = 0.0
         
         # Linear aggregation
@@ -84,7 +84,7 @@ class AggregationFunction:
         result += self.coefficients['gaussian'].value * np.sum(np.exp(-inputs**2))
         
         # Clip output to prevent explosion
-        return np.clip(result, -10.0, 10.0)
+        return np.clip(result, -3.0, 3.0)
     
     def get_parameters(self) -> List[EvolvableParameter]:
         """Return all evolvable parameters."""
@@ -106,7 +106,7 @@ class ActivationFunction:
     def __call__(self, x: float) -> float:
         """Apply evolvable activation function."""
         # Clip input to prevent numerical instability
-        x = np.clip(x, -50, 50)
+        x = np.clip(x, -10, 10)
         result = 0.0
         
         # Tanh
@@ -126,7 +126,7 @@ class ActivationFunction:
         result += self.coefficients['linear'].value * x
         
         # Clip output to prevent explosion
-        return np.clip(result, -10.0, 10.0)
+        return np.clip(result, -3.0, 3.0)
     
     def get_parameters(self) -> List[EvolvableParameter]:
         """Return all evolvable parameters."""
@@ -146,7 +146,7 @@ class EvolvableSynapse:
     def forward(self, x: float) -> float:
         """Apply synaptic transformation."""
         result = self.gain.value * self.weight.value * x + self.bias.value
-        return np.clip(result, -10.0, 10.0)
+        return np.clip(result, -3.0, 3.0)
     
     def get_parameters(self) -> List[EvolvableParameter]:
         """Return all evolvable parameters."""
