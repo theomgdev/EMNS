@@ -358,7 +358,7 @@ class EMNSNetwork:
                 param.resistance = state[i]['resistance']
     
     def train(self, X_train: np.ndarray, y_train: np.ndarray, 
-              epochs: int = 1000, verbose: bool = True, patience: int = 50) -> Dict:
+              epochs: int = 10000, verbose: bool = True, patience: int = 50) -> Dict:
         """
         Train the EMNS network using evolutionary principles with stability improvements.
         """
@@ -610,7 +610,7 @@ if __name__ == "__main__":
     
     # Train the network
     print("\nStarting evolution...")
-    history = network.train(X_train, y_train, epochs=1000, verbose=True, patience=100)
+    history = network.train(X_train, y_train, epochs=10000, verbose=True, patience=100)
     
     # Add final parameters for visualization
     history['final_params'] = network.get_all_parameters()
