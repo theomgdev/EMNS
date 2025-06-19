@@ -33,11 +33,14 @@ class EvolvableParameter:
         delta = noise * mutation_rate * (1 - self.resistance)
         self.value += delta
         
-        # Mutate the resistance (co-evolution)
+        # Clip parameter values to prevent numerical explosion
+        self.value = np.clip(self.value, -10.0, 10.0)
+        
+        # Mutate the resistance (co-evolution) with smaller step size
         resistance_noise = np.random.normal(0, 1)
-        resistance_delta = resistance_noise * mutation_rate * (1 - self.resistance)
+        resistance_delta = resistance_noise * mutation_rate * 0.01 * (1 - self.resistance)
         self.resistance += resistance_delta
-        self.resistance = np.clip(self.resistance, 0.0, 1.0)
+        self.resistance = np.clip(self.resistance, 0.0, 0.9)  # Prevent resistance from reaching 1.0
         
         # Track history
         self.history.append((self.value, self.resistance))
@@ -61,6 +64,8 @@ class AggregationFunction:
     
     def __call__(self, inputs: np.ndarray) -> float:
         """Apply evolvable aggregation function."""
+        # Clip inputs to prevent numerical issues
+        inputs = np.clip(inputs, -10, 10)
         result = 0.0
         
         # Linear aggregation
@@ -78,7 +83,8 @@ class AggregationFunction:
         # Gaussian aggregation
         result += self.coefficients['gaussian'].value * np.sum(np.exp(-inputs**2))
         
-        return result
+        # Clip output to prevent explosion
+        return np.clip(result, -10.0, 10.0)
     
     def get_parameters(self) -> List[EvolvableParameter]:
         """Return all evolvable parameters."""
@@ -99,25 +105,28 @@ class ActivationFunction:
     
     def __call__(self, x: float) -> float:
         """Apply evolvable activation function."""
+        # Clip input to prevent numerical instability
+        x = np.clip(x, -50, 50)
         result = 0.0
         
         # Tanh
         result += self.coefficients['tanh'].value * np.tanh(x)
         
         # Sigmoid
-        result += self.coefficients['sigmoid'].value * (1 / (1 + np.exp(-np.clip(x, -500, 500))))
+        result += self.coefficients['sigmoid'].value * (1 / (1 + np.exp(-x)))
         
         # ReLU
         result += self.coefficients['relu'].value * max(0, x)
         
         # Swish
-        sigmoid_x = 1 / (1 + np.exp(-np.clip(x, -500, 500)))
+        sigmoid_x = 1 / (1 + np.exp(-x))
         result += self.coefficients['swish'].value * x * sigmoid_x
         
         # Linear
         result += self.coefficients['linear'].value * x
         
-        return result
+        # Clip output to prevent explosion
+        return np.clip(result, -10.0, 10.0)
     
     def get_parameters(self) -> List[EvolvableParameter]:
         """Return all evolvable parameters."""
@@ -136,7 +145,8 @@ class EvolvableSynapse:
     
     def forward(self, x: float) -> float:
         """Apply synaptic transformation."""
-        return self.gain.value * self.weight.value * x + self.bias.value
+        result = self.gain.value * self.weight.value * x + self.bias.value
+        return np.clip(result, -10.0, 10.0)
     
     def get_parameters(self) -> List[EvolvableParameter]:
         """Return all evolvable parameters."""
@@ -224,7 +234,7 @@ class EMNSNetwork:
     Evolvable Modular Neural System - Main network class.
     """
     
-    def __init__(self, layer_sizes: List[int], mutation_rate: float = 0.5):
+    def __init__(self, layer_sizes: List[int], mutation_rate: float = 0.1):
         self.layer_sizes = layer_sizes
         self.mutation_rate = mutation_rate
         self.performance_history = []
@@ -283,7 +293,7 @@ class EMNSNetwork:
                 self.mutation_rate *= self.gamma
         
         # Keep mutation rate in reasonable bounds
-        self.mutation_rate = np.clip(self.mutation_rate, 0.001, 2.0)
+        self.mutation_rate = np.clip(self.mutation_rate, 0.001, 1.0)
         
         self.last_performance = current_performance
         self.performance_history.append(current_performance)
@@ -453,7 +463,14 @@ def create_test_data(n_samples: int = 100, n_features: int = 2,
     X = np.random.randn(n_samples, n_features)
     
     # Create a non-linear target function
-    y = np.sin(X[:, 0]) + 0.5 * np.cos(X[:, 1]) + noise * np.random.randn(n_samples)
+    if n_features >= 2:
+        y = np.sin(X[:, 0]) + 0.5 * np.cos(X[:, 1])
+        if n_features > 2:
+            y += 0.2 * np.tanh(X[:, 2])  # Add third feature if available
+    else:
+        y = np.sin(X[:, 0])
+    
+    y += noise * np.random.randn(n_samples)
     y = y.reshape(-1, 1)  # Make it 2D for consistency
     
     return X, y
@@ -514,7 +531,7 @@ if __name__ == "__main__":
     print(f"Training data shape: X={X_train.shape}, y={y_train.shape}")
     
     # Create EMNS network
-    network = EMNSNetwork(layer_sizes=[3, 8, 5, 1], mutation_rate=0.5)
+    network = EMNSNetwork(layer_sizes=[3, 8, 5, 1], mutation_rate=0.05)
     print(f"Network architecture: {network.layer_sizes}")
     print(f"Total parameters: {len(network.get_all_parameters())}")
     
